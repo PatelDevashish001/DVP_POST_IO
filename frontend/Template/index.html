@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+     <title>DVP POST IO</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f5f3ff',
+                            100: '#ede9fe',
+                            200: '#ddd6fe',
+                            300: '#c4b5fd',
+                            400: '#a78bfa',
+                            500: '#8b5cf6',
+                            600: '#7c3aed',
+                            700: '#6d28d9',
+                            800: '#5b21b6',
+                            900: '#4c1d95',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        
+        .dark body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1e3f 100%);
+        }
+        
+        
+        body.light {
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            color: #1e293b;
+        }
+        
+        /* Theme transition */
+        .theme-transition {
+            transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        /* Background gradient */
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+        }
+
+        /* Card and button effects */
+        .hover-scale {
+            transition: all 0.3s ease;
+        }
+        .hover-scale:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Glow effects */
+        .glow-btn {
+            transition: all 0.3s ease;
+            position: relative;
+            z-index: 1;
+        }
+        .glow-btn:hover {
+            box-shadow: 0 0 15px rgba(79, 70, 229, 0.6);
+        }
+        
+        /* Animated background for cards */
+        .animated-bg {
+            background: linear-gradient(270deg, #0f172a, #1e293b);
+            background-size: 400% 400%;
+            animation: gradientShift 8s ease infinite;
+        }
+        @keyframes gradientShift {
+            0% {background-position: 0% 50%}
+            50% {background-position: 100% 50%}
+            100% {background-position: 0% 50%}
+        }
+        
+        /* Fade-in animation */
+        .fade-in {
+            opacity: 0;
+            animation: fadeIn ease-in 0.6s forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Staggered animation for list items */
+        .stagger-in > * {
+            opacity: 0;
+            animation: staggerFade 0.5s ease forwards;
+        }
+        .stagger-in > *:nth-child(1) { animation-delay: 0.1s; }
+        .stagger-in > *:nth-child(2) { animation-delay: 0.2s; }
+        .stagger-in > *:nth-child(3) { animation-delay: 0.3s; }
+        .stagger-in > *:nth-child(4) { animation-delay: 0.4s; }
+        .stagger-in > *:nth-child(5) { animation-delay: 0.5s; }
+        @keyframes staggerFade {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+    </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            if (themeToggleBtn) {
+                const htmlElement = document.documentElement;
+                
+                
+                const savedTheme = localStorage.getItem('theme');
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                
+                if (savedTheme === 'light') {
+                    htmlElement.classList.remove('dark');
+                    document.body.classList.add('light');
+                    themeToggleBtn.innerHTML = '<i class="fas fa-moon"></i>';
+                } else if (savedTheme === 'dark' || prefersDark) {
+                    htmlElement.classList.add('dark');
+                    document.body.classList.remove('light');
+                    themeToggleBtn.innerHTML = '<i class="fas fa-sun"></i>';
+                }
+                
+                
+                themeToggleBtn.addEventListener('click', function() {
+                    if (htmlElement.classList.contains('dark')) {
+                        htmlElement.classList.remove('dark');
+                        document.body.classList.add('light');
+                        localStorage.setItem('theme', 'light');
+                        this.innerHTML = '<i class="fas fa-moon"></i>';
+                    } else {
+                        htmlElement.classList.add('dark');
+                        document.body.classList.remove('light');
+                        localStorage.setItem('theme', 'dark');
+                        this.innerHTML = '<i class="fas fa-sun"></i>';
+                    }
+                });
+            }
+            
+            // Handle tweet deletion
+            document.querySelectorAll('.delete-tweet-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const tweetId = this.getAttribute('data-id');
+                    if (!tweetId) {
+                        console.error('No tweet ID found');
+                        alert('Error: Could not identify the tweet to delete.');
+                        return;
+                    }
+                    
+                    const tweetItem = this.closest('li');
+                    
+                    if (confirm('Are you sure you want to delete this scheduled post?')) {
+                        fetch(`/delete_tweet/${tweetId}`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            }
+                        })
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! Status: ${response.status}`);
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.success) {
+                                // Remove the tweet from the UI with animation
+                                tweetItem.style.opacity = '0';
+                                tweetItem.style.transform = 'translateX(20px)';
+                                setTimeout(() => {
+                                    tweetItem.remove();
+                                    
+                                    // Update the count in the stats card
+                                    const countElement = document.querySelector('.scheduled-count');
+                                    if (countElement) {
+                                        const currentCount = parseInt(countElement.textContent);
+                                        if (!isNaN(currentCount)) {
+                                            countElement.textContent = Math.max(0, currentCount - 1);
+                                        }
+                                    }
+                                    
+                                    // Show "no posts" message if this was the last one
+                                    const tweetsList = document.querySelector('.tweets-list');
+                                    if (tweetsList && tweetsList.children.length === 0) {
+                                        const noPostsDiv = document.createElement('div');
+                                        noPostsDiv.className = 'text-center py-8 text-gray-400 fade-in';
+                                        noPostsDiv.innerHTML = `
+                                            <i class="fas fa-calendar-times text-4xl mb-2"></i>
+                                            <p>No posts scheduled yet</p>
+                                        `;
+                                        const container = tweetsList.parentNode;
+                                        if (container) {
+                                            // Remove the list
+                                            tweetsList.remove();
+                                            // Add the no posts message
+                                            container.appendChild(noPostsDiv);
+                                        }
+                                    }
+                                }, 300);
+                            } else {
+                                alert('Error deleting post: ' + (data.message || 'Unknown error'));
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Failed to delete post. Please try again.');
+                        });
+                    }
+                });
+            });
+            
+            // Add animation to the form submission
+            const form = document.querySelector('form');
+            if (form) {
+                form.addEventListener('submit', function() {
+                    const button = this.querySelector('button[type="submit"]');
+                    if (button) {
+                        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Scheduling...';
+                        button.disabled = true;
+                    }
+                });
+            }
+            
+            // Post preview functionality
+            const messageInput = document.getElementById('message-input');
+            const previewContainer = document.getElementById('preview-container');
+            const previewContent = document.getElementById('preview-content');
+            const previewToggle = document.getElementById('preview-toggle');
+            
+            if (messageInput && previewContent) {
+                messageInput.addEventListener('input', function() {
+                    // Update preview content
+                    const content = this.value.trim();
+                    if (content && previewContainer) {
+                        previewContent.textContent = content;
+                        previewContainer.classList.remove('hidden');
+                    } else if (previewContainer) {
+                        previewContainer.classList.add('hidden');
+                    }
+                });
+                
+                // Toggle preview
+                if (previewToggle && previewContainer) {
+                    previewToggle.addEventListener('click', function() {
+                        previewContainer.classList.toggle('hidden');
+                        if (!previewContainer.classList.contains('hidden')) {
+                            previewContent.textContent = messageInput.value.trim() || 'Your post will appear here...';
+                        }
+                    });
+                }
+            }
+        });
+    </script>
+</head>
+<body class="text-gray-100 theme-transition dark">
+    {% if session['user_id'] %}
+    <!-- Dashboard Layout with Sidebar -->
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <div class="w-64 bg-gray-900 dark:bg-gray-900 light:bg-white border-r border-gray-800 dark:border-gray-800 light:border-gray-200 shadow-lg theme-transition">
+            <div class="p-6">
+                <h1 class="text-2xl font-bold text-indigo-400 flex items-center">
+                    <i class="fas fa-rocket mr-2"></i> DVP POST IO
+                </h1>
+            </div>
+            <div class="px-4 py-2">
+                <p class="text-sm text-gray-400">Logged in as:</p>
+                {% if user_info %}
+                    <p class="font-semibold text-green-400 truncate">{{ user_info.display_name or user_info.username }}</p>
+                    <p class="text-xs text-gray-500">@{{ user_info.username }}</p>
+                {% else %}
+                    <p class="font-semibold text-green-400 truncate">{{ session['user_id'] }}</p>
+                {% endif %}
+            </div>
+            <nav class="mt-6">
+                <a href="#" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors">
+                    <i class="fas fa-home w-6"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors">
+                    <i class="fas fa-calendar-alt w-6"></i>
+                    <span>Scheduled Posts</span>
+                </a>
+                <a href="#" class="flex items-center px-4 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors">
+                    <i class="fas fa-history w-6"></i>
+                    <span>History</span>
+                </a>
+                <a href="{{ url_for('logout') }}" class="flex items-center px-4 py-3 text-red-400 hover:bg-gray-800 hover:text-red-300 transition-colors mt-8">
+                    <i class="fas fa-sign-out-alt w-6"></i>
+                    <span>Logout</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 overflow-auto">
+            <header class="bg-gray-900 dark:bg-gray-900 light:bg-white shadow-md p-4 flex justify-between items-center theme-transition">
+                <h2 class="text-xl font-semibold text-white dark:text-white light:text-gray-800">Dashboard</h2>
+                <div class="flex space-x-2">
+                    <button id="theme-toggle" class="bg-gray-800 dark:bg-gray-800 light:bg-gray-200 p-2 rounded-full hover:bg-gray-700 dark:hover:bg-gray-700 light:hover:bg-gray-300 transition-colors theme-transition">
+                        <i class="fas fa-sun text-gray-300 dark:text-gray-300 light:text-gray-700"></i>
+                    </button>
+                    <button class="bg-gray-800 dark:bg-gray-800 light:bg-gray-200 p-2 rounded-full hover:bg-gray-700 dark:hover:bg-gray-700 light:hover:bg-gray-300 transition-colors theme-transition">
+                        <i class="fas fa-bell text-gray-300 dark:text-gray-300 light:text-gray-700"></i>
+                    </button>
+                    <button class="bg-gray-800 dark:bg-gray-800 light:bg-gray-200 p-2 rounded-full hover:bg-gray-700 dark:hover:bg-gray-700 light:hover:bg-gray-300 transition-colors theme-transition">
+                        <i class="fas fa-cog text-gray-300 dark:text-gray-300 light:text-gray-700"></i>
+                    </button>
+                </div>
+            </header>
+
+            <main class="p-6">
+                <!-- Stats Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-gradient-to-r from-purple-900 to-indigo-800 rounded-xl p-6 shadow-lg hover-scale">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-lg font-medium text-gray-200">Scheduled Posts</h3>
+                            <i class="fas fa-calendar text-indigo-300 text-2xl"></i>
+                        </div>
+                        <p class="text-3xl font-bold mt-2 scheduled-count">{{ scheduled_tweets|length }}</p>
+                    </div>
+                    
+                    <div class="bg-gradient-to-r from-blue-900 to-cyan-800 rounded-xl p-6 shadow-lg hover-scale">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-lg font-medium text-gray-200">Next Post</h3>
+                            <i class="fas fa-clock text-blue-300 text-2xl"></i>
+                        </div>
+                        <p class="text-xl font-bold mt-2">
+                            {% if scheduled_tweets and scheduled_tweets|length > 0 %}
+                                {% if scheduled_tweets[0]|length > 2 %}
+                                    {{ scheduled_tweets[0][2] }}
+                                {% else %}
+                                    None scheduled
+                                {% endif %}
+                            {% else %}
+                                None scheduled
+                            {% endif %}
+                        </p>
+                    </div>
+                    
+                    <div class="bg-gradient-to-r from-emerald-900 to-teal-800 rounded-xl p-6 shadow-lg hover-scale">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-lg font-medium text-gray-200">Account</h3>
+                            <i class="fas fa-user text-emerald-300 text-2xl"></i>
+                        </div>
+                        {% if user_info %}
+                            <p class="text-xl font-bold mt-2 truncate">{{ user_info.display_name or user_info.username or session['user_id'] }}</p>
+                            {% if user_info.username %}
+                                <p class="text-sm text-emerald-300 truncate">@{{ user_info.username }}</p>
+                            {% endif %}
+                        {% else %}
+                            <p class="text-xl font-bold mt-2 truncate">Mastodon</p>
+                            {% if session['user_id'] %}
+                                <p class="text-sm text-emerald-300 truncate">ID: {{ session['user_id'] }}</p>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Schedule Form -->
+                <div class="bg-gray-800 dark:bg-gray-800 light:bg-white rounded-xl p-6 shadow-lg mb-8 fade-in theme-transition">
+                    <h2 class="text-xl font-semibold text-white dark:text-white light:text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-pen-fancy mr-2 text-indigo-400"></i> Create New Post
+                    </h2>
+                    <form action="/add_tweet" method="post" class="space-y-4">
+                        <div>
+                            <textarea id="message-input" name="message" placeholder="What's on your mind?" required 
+                                class="w-full p-4 rounded-lg bg-gray-700 dark:bg-gray-700 light:bg-gray-100 text-white dark:text-white light:text-gray-800 border border-gray-600 dark:border-gray-600 light:border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none h-32 transition-all theme-transition"></textarea>
+                        </div>
+                        
+                        <!-- Post Preview -->
+                        <div id="preview-container" class="hidden bg-gray-700 dark:bg-gray-700 light:bg-gray-100 rounded-lg p-4 border-l-4 border-indigo-500 theme-transition">
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="text-sm font-medium text-gray-400 dark:text-gray-400 light:text-gray-600">
+                                    <i class="fas fa-eye mr-1"></i> Post Preview
+                                </h3>
+                                <div class="flex items-center text-xs text-gray-400">
+                                    <i class="fab fa-mastodon mr-1"></i> Mastodon
+                                </div>
+                            </div>
+                            <div id="preview-content" class="text-white dark:text-white light:text-gray-800 theme-transition">
+                                Your post will appear here...
+                            </div>
+                        </div>
+                        
+                        <div class="flex flex-col md:flex-row gap-4">
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium text-gray-400 dark:text-gray-400 light:text-gray-600 mb-1 theme-transition">Schedule Time</label>
+                                <input type="datetime-local" name="schedule_time" required 
+                                    class="w-full p-3 rounded-lg bg-gray-700 dark:bg-gray-700 light:bg-gray-100 text-white dark:text-white light:text-gray-800 border border-gray-600 dark:border-gray-600 light:border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent theme-transition">
+                            </div>
+                            
+                            <div class="flex-1">
+                                <label class="block text-sm font-medium text-gray-400 dark:text-gray-400 light:text-gray-600 mb-1 theme-transition">Visibility</label>
+                                <select name="visibility" class="w-full p-3 rounded-lg bg-gray-700 dark:bg-gray-700 light:bg-gray-100 text-white dark:text-white light:text-gray-800 border border-gray-600 dark:border-gray-600 light:border-gray-300 focus:ring-2 focus:ring-indigo-500 focus:border-transparent theme-transition">
+                                    <option value="public">Public</option>
+                                    <option value="private">Followers Only</option>
+                                    <option value="unlisted">Unlisted</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-between">
+                            <button id="preview-toggle" type="button" class="bg-gray-700 hover:bg-gray-600 dark:bg-gray-700 dark:hover:bg-gray-600 light:bg-gray-200 light:hover:bg-gray-300 text-gray-300 dark:text-gray-300 light:text-gray-700 font-medium py-2 px-4 rounded-lg transition-colors flex items-center theme-transition">
+                                <i class="fas fa-eye mr-2"></i> Toggle Preview
+                            </button>
+                            
+                            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-6 rounded-lg transition-colors glow-btn flex items-center">
+                                <i class="fas fa-paper-plane mr-2"></i> Schedule Post
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Scheduled Posts List -->
+                <div class="bg-gray-800 dark:bg-gray-800 light:bg-white rounded-xl p-6 shadow-lg theme-transition">
+                    <h2 class="text-xl font-semibold text-white dark:text-white light:text-gray-800 mb-4 flex items-center">
+                        <i class="fas fa-list-alt mr-2 text-indigo-400"></i> Scheduled Posts
+                    </h2>
+                    
+                    {% if scheduled_tweets %}
+                        <ul class="space-y-4 stagger-in tweets-list">
+                            {% for tweet in scheduled_tweets %}
+                                <li class="p-4 animated-bg rounded-lg border-l-4 border-indigo-500 hover-scale transition-all duration-300">
+                                    <div class="flex justify-between">
+                                        <p class="text-lg font-medium text-white dark:text-white light:text-gray-800 theme-transition">{{ tweet[1] }}</p>
+                                        <div class="flex space-x-2">
+                                            <button class="text-blue-400 hover:text-blue-300">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button class="text-red-400 hover:text-red-300 delete-tweet-btn" data-id="{{ tweet[0] }}">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center mt-2 text-gray-400 justify-between">
+                                        <div class="flex items-center">
+                                            <i class="fas fa-clock mr-2"></i>
+                                            <span>{{ tweet[2] }}</span>
+                                        </div>
+                                        <div class="flex items-center space-x-3">
+                                            {% if tweet|length > 3 %}
+                                                <div class="flex items-center">
+                                                    <i class="fas fa-{% if tweet[3] == 'public' %}globe{% elif tweet[3] == 'private' %}lock{% else %}eye-slash{% endif %} mr-2"></i>
+                                                    <span class="capitalize">{{ tweet[3] }}</span>
+                                                </div>
+                                            {% endif %}
+                                            {% if tweet|length > 4 %}
+                                                <div class="flex items-center">
+                                                    <i class="fas fa-circle text-xs mr-2 {% if tweet[4] == 'pending' %}text-yellow-500{% elif tweet[4] == 'posted' %}text-green-500{% else %}text-red-500{% endif %}"></i>
+                                                    <span class="capitalize">{{ tweet[4] }}</span>
+                                                </div>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <div class="text-center py-8 text-gray-400 dark:text-gray-400 light:text-gray-500 theme-transition">
+                            <i class="fas fa-calendar-times text-4xl mb-2"></i>
+                            <p>No posts scheduled yet</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </main>
+        </div>
+    </div>
+    {% else %}
+    <!-- Login Page -->
+    <div class="flex items-center justify-center min-h-screen">
+        <div class="w-full max-w-md bg-gray-900 p-8 rounded-xl shadow-2xl border border-gray-800 fade-in">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-bold text-indigo-400 mb-2">DVP POST IO</h1>
+                <p class="text-gray-400">Schedule your Mastodon posts with ease</p>
+            </div>
+            
+            <div class="bg-gray-800 rounded-lg p-6 mb-6">
+                <h2 class="text-xl font-semibold text-white mb-4">Welcome!</h2>
+                <p class="text-gray-300 mb-6">Connect your Mastodon account to get started scheduling posts.</p>
+                
+                <a href="{{ url_for('login') }}" 
+                   class="block w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-lg text-center transition-colors glow-btn">
+                    <i class="fas fa-sign-in-alt mr-2"></i> Login with Mastodon
+                </a>
+            </div>
+            
+            <div class="text-center text-gray-500 text-sm">
+                <p>Your data stays private and secure</p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</body>
+</html>
