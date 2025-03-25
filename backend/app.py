@@ -6,52 +6,6 @@ import logging
 import datetime
 from backend.database import create_databases, migrate_data, check_database_integrity, repair_database
 import os
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("app.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger("mastodon_scheduler")
-
-app = Flask(__name__)
-app.secret_key = config.SECRET_KEY
-app.config['APP_NAME'] = "DVP POST IO"  # Set app name in config
-
-mastodon = Mastodon(
-    client_id=config.CLIENT_ID,
-    client_secret=config.CLIENT_SECRET,
-    api_base_url=config.MASTODON_BASE_URL
-)
-
-# Ensure user is logged in
-def get_user():
-    return session.get("user_id", None)  # Returns None instead of breaking
-
-def get_user_info():
-    """Get additional user information from the database."""
-    if not get_user():
-        return None
-        
-    try:
-        with sqlite3.connect("users.db") as conn:
-            conn.row_factory = sqlite3.Row
-            c = conn.cursor()
-            c.execute("""
-                SELECT mastodon_id, username, display_name, profile_url 
-                FROM users 
-                WHERE mastodon_id = ?
-            """, (get_user(),))
-            result = c.fetchone()
-            return dict(result) if result else None
-    except Exception as e:
-        logger.error(f"Error fetching user info: {e}")
-        return None
-
 def init_databases():
     """Create tables if they don't exist."""
     # Check if users.db exists, if not, create it
@@ -110,6 +64,54 @@ def init_databases():
         migrate_data()
 
     return result
+
+# Configure logging
+init_databases() 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("app.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger("mastodon_scheduler")
+
+app = Flask(__name__)
+app.secret_key = config.SECRET_KEY
+app.config['APP_NAME'] = "DVP POST IO"  # Set app name in config
+
+mastodon = Mastodon(
+    client_id=config.CLIENT_ID,
+    client_secret=config.CLIENT_SECRET,
+    api_base_url=config.MASTODON_BASE_URL
+)
+
+# Ensure user is logged in
+def get_user():
+    return session.get("user_id", None)  # Returns None instead of breaking
+
+def get_user_info():
+    """Get additional user information from the database."""
+    if not get_user():
+        return None
+        
+    try:
+        with sqlite3.connect("users.db") as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute("""
+                SELECT mastodon_id, username, display_name, profile_url 
+                FROM users 
+                WHERE mastodon_id = ?
+            """, (get_user(),))
+            result = c.fetchone()
+            return dict(result) if result else None
+    except Exception as e:
+        logger.error(f"Error fetching user info: {e}")
+        return None
+
+
 
 @app.route("/")
 def index():
@@ -344,6 +346,5 @@ def logout():
     session.pop("user_id", None)
     return redirect(url_for("index"))
 
-if __name__ == "__main__":
     init_databases()  # Ensure tables exist before running
-    app.run(debug=False)
+    
