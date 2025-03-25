@@ -302,4 +302,4 @@ def logout():
 
 if __name__ == "__main__":
     init_databases()  # Ensure tables exist before running
-    app.run(debug=True)
+    app.run(debug=False)
