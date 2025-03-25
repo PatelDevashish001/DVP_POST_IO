@@ -5,6 +5,7 @@ import config
 import logging
 import datetime
 from backend.database import create_databases, migrate_data, check_database_integrity, repair_database
+import os
 
 # Configure logging
 logging.basicConfig(
@@ -53,18 +54,61 @@ def get_user_info():
 
 def init_databases():
     """Create tables if they don't exist."""
-    # Check database integrity first
+    # Check if users.db exists, if not, create it
+    if not os.path.exists('users.db'):
+        try:
+            with sqlite3.connect('users.db') as conn:
+                c = conn.cursor()
+                c.execute("""
+                    CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        mastodon_id TEXT UNIQUE,
+                        access_token TEXT,
+                        username TEXT,
+                        display_name TEXT,
+                        profile_url TEXT
+                    )
+                """)
+                conn.commit()
+                logger.info("Created users.db database and users table")
+        except Exception as e:
+            logger.error(f"Error creating users.db: {e}")
+            return False
+
+    # Check if tweets.db exists, if not, create it
+    if not os.path.exists('tweets.db'):
+        try:
+            with sqlite3.connect('tweets.db') as conn:
+                c = conn.cursor()
+                c.execute("""
+                    CREATE TABLE IF NOT EXISTS tweets (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id TEXT,
+                        message TEXT,
+                        schedule_time TEXT,
+                        visibility TEXT,
+                        status TEXT DEFAULT 'pending',
+                        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                conn.commit()
+                logger.info("Created tweets.db database and tweets table")
+        except Exception as e:
+            logger.error(f"Error creating tweets.db: {e}")
+            return False
+
+    # Check database integrity and repair if needed
     if not check_database_integrity():
         logger.warning("Database integrity check failed, attempting repair")
         repair_database()
-    
+
     # Create or update databases
     result = create_databases()
-    
+
     # Migrate existing data
     if result:
         migrate_data()
-        
+
     return result
 
 @app.route("/")
