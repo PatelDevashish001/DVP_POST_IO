@@ -111,6 +111,7 @@ def init_databases():
 
     return result
 
+
 @app.route("/")
 def index():
     if not get_user():
