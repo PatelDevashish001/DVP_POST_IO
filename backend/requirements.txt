@@ -4,4 +4,4 @@ requests==2.31.0
 gunicorn==21.2.0  # Required for running Flask in production
 apscheduler==3.10.4  # For task scheduling
 schedule==1.2.1  # Optional alternative for scheduling
-sqlite3  # Built-in, does not require explicit installation
+
