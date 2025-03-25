@@ -1,0 +1,18 @@
+{
+  "services": [
+    {
+      "name": "flask-backend",
+      "startCommand": "python start_app.py",
+      "envVars": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    },
+    {
+      "name": "scheduler",
+      "startCommand": "python start_scheduler.py",
+      "envVars": {
+        "PYTHONUNBUFFERED": "1"
+      }
+    }
+  ]
+}
