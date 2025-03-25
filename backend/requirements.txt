@@ -1,24 +1,7 @@
-blinker==1.9.0
-blurhash==1.1.4
-certifi==2025.1.31
-charset-normalizer==3.4.1
-click==8.1.8
-decorator==5.2.1
-Flask==3.1.0
-idna==3.10
-itsdangerous==2.2.0
-Jinja2==3.1.5
-MarkupSafe==3.0.2
-Mastodon.py==2.0.1
-oauthlib==3.2.2
-python-dateutil==2.9.0.post0
-python-decouple==3.8
+Flask==3.0.0
 python-dotenv==1.0.1
-python-magic==0.4.27
-requests==2.32.3
-requests-oauthlib==2.0.0
-schedule==1.2.2
-six==1.17.0
-tweepy==4.15.0
-urllib3==2.3.0
-Werkzeug==3.1.3
+requests==2.31.0
+gunicorn==21.2.0  # Required for running Flask in production
+apscheduler==3.10.4  # For task scheduling
+schedule==1.2.1  # Optional alternative for scheduling
+sqlite3  # Built-in, does not require explicit installation
