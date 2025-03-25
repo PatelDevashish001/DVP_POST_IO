@@ -4,7 +4,7 @@ from mastodon import Mastodon
 import config
 import logging
 import datetime
-from database import create_databases, migrate_data, check_database_integrity, repair_database
+from backend.database import create_databases, migrate_data, check_database_integrity, repair_database
 
 # Configure logging
 logging.basicConfig(
