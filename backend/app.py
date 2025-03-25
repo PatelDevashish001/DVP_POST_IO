@@ -52,65 +52,62 @@ def get_user_info():
         logger.error(f"Error fetching user info: {e}")
         return None
 
-def init_databases():
-    """Create tables if they don't exist."""
-    # Check if users.db exists, if not, create it
-    if not os.path.exists('users.db'):
-        try:
-            with sqlite3.connect('users.db') as conn:
-                c = conn.cursor()
-                c.execute("""
-                    CREATE TABLE IF NOT EXISTS users (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        mastodon_id TEXT UNIQUE,
-                        access_token TEXT,
-                        username TEXT,
-                        display_name TEXT,
-                        profile_url TEXT
-                    )
-                """)
-                conn.commit()
-                logger.info("Created users.db database and users table")
-        except Exception as e:
-            logger.error(f"Error creating users.db: {e}")
-            return False
-
-    # Check if tweets.db exists, if not, create it
-    if not os.path.exists('tweets.db'):
-        try:
-            with sqlite3.connect('tweets.db') as conn:
-                c = conn.cursor()
-                c.execute("""
-                    CREATE TABLE IF NOT EXISTS tweets (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        user_id TEXT,
-                        message TEXT,
-                        schedule_time TEXT,
-                        visibility TEXT,
-                        status TEXT DEFAULT 'pending',
-                        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-                    )
-                """)
-                conn.commit()
-                logger.info("Created tweets.db database and tweets table")
-        except Exception as e:
-            logger.error(f"Error creating tweets.db: {e}")
-            return False
-
-    # Check database integrity and repair if needed
-    if not check_database_integrity():
-        logger.warning("Database integrity check failed, attempting repair")
-        repair_database()
-
-    # Create or update databases
-    result = create_databases()
-
-    # Migrate existing data
-    if result:
-        migrate_data()
-
-    return result
-
+def create_databases():
+    """Create the necessary database files."""
+    print_step("3", "Creating database files...")
+    
+    try:
+        # Create users database
+        with sqlite3.connect("users.db") as conn:
+            c = conn.cursor()
+            c.execute('''CREATE TABLE IF NOT EXISTS users (
+                            mastodon_id TEXT PRIMARY KEY, 
+                            access_token TEXT NOT NULL,
+                            username TEXT,
+                            display_name TEXT,
+                            profile_url TEXT,
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+            conn.commit()
+        
+        # Create tweets database
+        with sqlite3.connect("tweets.db") as conn:
+            c = conn.cursor()
+            c.execute('''CREATE TABLE IF NOT EXISTS tweets (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                            user_id TEXT NOT NULL, 
+                            message TEXT NOT NULL, 
+                            schedule_time TEXT NOT NULL,
+                            visibility TEXT DEFAULT 'public',
+                            media_urls TEXT,
+                            status TEXT DEFAULT 'pending',
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            posted_at TIMESTAMP,
+                            retry_count INTEGER DEFAULT 0,
+                            processing_id TEXT,
+                            processing_started TIMESTAMP,
+                            FOREIGN KEY (user_id) REFERENCES users(mastodon_id))''')
+            conn.commit()
+        
+        # Create stats database
+        with sqlite3.connect("stats.db") as conn:
+            c = conn.cursor()
+            c.execute('''CREATE TABLE IF NOT EXISTS post_stats (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            tweet_id INTEGER,
+                            user_id TEXT NOT NULL,
+                            post_time TIMESTAMP,
+                            status TEXT,
+                            error_message TEXT,
+                            FOREIGN KEY (user_id) REFERENCES users(mastodon_id),
+                            FOREIGN KEY (tweet_id) REFERENCES tweets(id))''')
+            conn.commit()
+        
+        print("✅ Database files created successfully.")
+        return True
+    
+    except Exception as e:
+        print(f"❌ Error creating database files: {e}")
+        return False
 
 @app.route("/")
 def index():
@@ -346,5 +343,5 @@ def logout():
     return redirect(url_for("index"))
 
 if __name__ == "__main__":
-    init_databases()  # Ensure tables exist before running
+    create_databases()  # Ensure tables exist before running
     app.run(debug=False)
