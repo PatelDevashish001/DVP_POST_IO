@@ -5,7 +5,24 @@ import config
 import logging
 import datetime
 from backend.database import create_databases, migrate_data, check_database_integrity, repair_database
+def init_databases():
+    """Create tables if they don't exist."""
+    # Check database integrity first
+    if not check_database_integrity():
+        logger.warning("Database integrity check failed, attempting repair")
+        repair_database()
+    
+    # Create or update databases
+    result = create_databases()
+    
+    # Migrate existing data
+    if result:
+        migrate_data()
+        
+    return result
 init_databases()
+
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -51,21 +68,6 @@ def get_user_info():
         logger.error(f"Error fetching user info: {e}")
         return None
 
-def init_databases():
-    """Create tables if they don't exist."""
-    # Check database integrity first
-    if not check_database_integrity():
-        logger.warning("Database integrity check failed, attempting repair")
-        repair_database()
-    
-    # Create or update databases
-    result = create_databases()
-    
-    # Migrate existing data
-    if result:
-        migrate_data()
-        
-    return result
 
 @app.route("/")
 def index():
