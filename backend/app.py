@@ -5,7 +5,7 @@ import config
 import logging
 import datetime
 from backend.database import create_databases, migrate_data, check_database_integrity, repair_database
-
+init_databases()
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -301,5 +301,5 @@ def logout():
     return redirect(url_for("index"))
 
 if __name__ == "__main__":
-    init_databases()  # Ensure tables exist before running
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))  # Get PORT from environment
+    app.run(host="0.0.0.0", port=port, debug=False)
