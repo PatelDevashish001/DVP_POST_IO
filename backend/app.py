@@ -1,10 +1,33 @@
+import logging
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("app.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger("mastodon_scheduler")
 from flask import Flask, render_template, request, redirect, session, url_for, jsonify
 import sqlite3
 from mastodon import Mastodon
 import config
-import logging
 import datetime
 from backend.database import create_databases, migrate_data, check_database_integrity, repair_database
+
+
+
+
+app = Flask(__name__)
+app.secret_key = config.SECRET_KEY
+app.config['APP_NAME'] = "DVP POST IO"  # Set app name in config
+
+mastodon = Mastodon(
+    client_id=config.CLIENT_ID,
+    client_secret=config.CLIENT_SECRET,
+    api_base_url=config.MASTODON_BASE_URL
+)
 def init_databases():
     """Create tables if they don't exist."""
     # Check database integrity first
@@ -22,27 +45,6 @@ def init_databases():
     return result
 init_databases()
 
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("app.log"),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger("mastodon_scheduler")
-
-app = Flask(__name__)
-app.secret_key = config.SECRET_KEY
-app.config['APP_NAME'] = "DVP POST IO"  # Set app name in config
-
-mastodon = Mastodon(
-    client_id=config.CLIENT_ID,
-    client_secret=config.CLIENT_SECRET,
-    api_base_url=config.MASTODON_BASE_URL
-)
 
 # Ensure user is logged in
 def get_user():
