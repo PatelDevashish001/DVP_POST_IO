@@ -1,11 +1,12 @@
 from flask import Flask, render_template, request, redirect, session, url_for, jsonify
-# import sqlite3  # Remove SQLite3
-import psycopg2 # Import PostgreSQL driver
-import psycopg2.extras # Import DictCursor
+import sqlite3
 from mastodon import Mastodon
+import config
 import logging
 import datetime
-import os
+from database import create_databases, migrate_data, check_database_integrity, repair_database
+
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -15,106 +16,115 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("mastodon_scheduler")
-def get_connection():
-    """Establish connection to Render PostgreSQL database."""
-    return psycopg2.connect(os.getenv("RENDER_DATABASE_URL"))
-
-
 
 app = Flask(__name__)
-app.secret_key = os.getenv("SECRET_KEY")
-app.config['APP_NAME'] = "DVP POST IO"
+app.secret_key = config.SECRET_KEY
+app.config['APP_NAME'] = "DVP POST IO"  # Set app name in config
 
-# Mastodon client setup (remains the same)
 mastodon = Mastodon(
-    client_id=os.getenv("CLIENT_ID"),
-    client_secret=os.getenv("CLIENT_SECRET"),
-    api_base_url=os.getenv("MASTODON_BASE_URL")
+    client_id=config.CLIENT_ID,
+    client_secret=config.CLIENT_SECRET,
+    api_base_url=config.MASTODON_BASE_URL
 )
 
-# --- User Session Helper ---
+# Ensure user is logged in
 def get_user():
-    """Gets the Mastodon user ID from the session."""
-    return session.get("user_id", None)
+    return session.get("user_id", None)  # Returns None instead of breaking
 
-# --- User Info Helper (Converted to PostgreSQL) ---
 def get_user_info():
-    """Get additional user information from the PostgreSQL database."""
-    user_id = get_user()
-    if not user_id:
+    """Get additional user information from the database."""
+    if not get_user():
         return None
-
-    conn = None
+        
     try:
-        # Use the get_connection function from database.py
-        conn = get_connection()
-        # Use DictCursor for dictionary-like row access
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            cur.execute("""
-                SELECT mastodon_id, username, display_name, profile_url
-                FROM users
-                WHERE mastodon_id = %s
-            """, (user_id,)) # Use %s placeholder
-            result = cur.fetchone()
-            # Return a dictionary if found, otherwise None
+        with sqlite3.connect("users.db") as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute("""
+                SELECT mastodon_id, username, display_name, profile_url 
+                FROM users 
+                WHERE mastodon_id = ?
+            """, (get_user(),))
+            result = c.fetchone()
             return dict(result) if result else None
-    except (Exception, psycopg2.Error) as e:
-        logger.error(f"Error fetching user info for {user_id}: {e}")
+    except Exception as e:
+        logger.error(f"Error fetching user info: {e}")
         return None
-    finally:
-        if conn:
-            conn.close() # Ensure connection is always closed
 
+def init_databases():
+    """Create tables if they don't exist."""
+    # Check database integrity first
+    if not check_database_integrity():
+        logger.warning("Database integrity check failed, attempting repair")
+        repair_database()
+    
+    # Create or update databases
+    result = create_databases()
+    
+    # Migrate existing data
+    if result:
+        migrate_data()
+        
+    return result
 
 @app.route("/")
 def index():
-    user_id = get_user()
-    if not user_id:
+    if not get_user():
         return redirect(url_for("login"))
-
-    scheduled_tweets = []
-    user_info = get_user_info() # Fetch user info for display
-    conn = None
-
+    
+    # Fetch scheduled tweets for the logged-in user
     try:
-        conn = get_connection() # Use imported connection function
-        # Use DictCursor for easier access in template
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            # Fetch pending tweets for the logged-in user
-            # Removed the PRAGMA check, assume schema managed by database.py
-            # Use COALESCE and NOW() for PostgreSQL defaults
-            cur.execute("""
-                SELECT id, message, schedule_time,
-                       COALESCE(visibility, 'public') as visibility,
-                       COALESCE(status, 'pending') as status,
-                       COALESCE(created_at, NOW()) as created_at
-                FROM tweets
-                WHERE user_id = %s AND COALESCE(status, 'pending') = 'pending'
-                ORDER BY schedule_time
-            """, (user_id,))
-            # Convert rows to simple dictionaries for the template
-            scheduled_tweets = cur.fetchall()
+        with sqlite3.connect("tweets.db") as conn:
+            c = conn.cursor()
+            
+            # Check if status column exists
+            c.execute("PRAGMA table_info(tweets)")
+            columns = [column[1] for column in c.fetchall()]
+            
+            if "status" in columns:
+                c.execute("""
+                    SELECT id, message, schedule_time, 
+                           COALESCE(visibility, 'public') as visibility, 
+                           COALESCE(status, 'pending') as status, 
+                           COALESCE(created_at, datetime('now')) as created_at
+                    FROM tweets 
+                    WHERE user_id = ? AND (status IS NULL OR status = 'pending')
+                    ORDER BY schedule_time
+                """, (get_user(),))
+            else:
+                # Fallback for older database schema
+                c.execute("""
+                    SELECT id, message, schedule_time, 
+                           COALESCE(visibility, 'public') as visibility,
+                           'pending' as status,
+                           datetime('now') as created_at
+                    FROM tweets 
+                    WHERE user_id = ?
+                    ORDER BY schedule_time
+                """, (get_user(),))
+                
+            scheduled_tweets = c.fetchall()
+            
+            # Get user info
+            user_info = get_user_info()
+    except Exception as e:
+        logger.error(f"Database error: {e}")
+        scheduled_tweets = []
+        user_info = None
 
-    except (Exception, psycopg2.Error) as e:
-        logger.error(f"Database error fetching tweets for user {user_id}: {e}")
-        # scheduled_tweets remains empty list
-        # flash("Could not load scheduled posts.", "error") # Optional feedback
-    finally:
-        if conn:
-            conn.close()
-
-    return render_template("index.html",
-                          scheduled_tweets=scheduled_tweets,
-                          user_info=user_info,
+    return render_template("index.html", 
+                          scheduled_tweets=scheduled_tweets, 
+                          user_info=user_info, 
                           app_name=app.config['APP_NAME'])
 
 @app.route("/login")
 def login():
     if get_user():
-        return redirect(url_for("index"))
+        return redirect(url_for("index"))  # If already logged in, go home
+    
     auth_url = mastodon.auth_request_url(
         scopes=["read", "write"],
-        redirect_uris=os.getenv("REDIRECT_URI")
+        redirect_uris=config.REDIRECT_URI
     )
     return redirect(auth_url)
 
@@ -122,223 +132,174 @@ def login():
 def callback():
     code = request.args.get("code")
     if not code:
-        logger.error("Callback received without authorization code.")
+        logger.error("No authorization code provided")
         return "Error: No authorization code provided.", 400
 
-    access_token = None
-    user = None
     try:
         access_token = mastodon.log_in(
             code=code,
-            redirect_uri=os.getenv("REDIRECT_URI"),
+            redirect_uri=config.REDIRECT_URI,
             scopes=["read", "write"]
         )
-        mastodon_client = Mastodon(access_token=access_token, api_base_url=os.getenv("MASTODON_BASE_URL"))
-        user = mastodon_client.me()
-        logger.info(f"Successfully authenticated Mastodon user: {user.get('username')}")
-
     except Exception as e:
-        logger.error(f"Mastodon authentication or API error during callback: {e}")
-        return "Error: Could not authenticate with Mastodon.", 500
+        logger.error(f"Login Error: {e}")
+        return "Error: Could not authenticate.", 500
 
-    # --- Store/Update User in PostgreSQL Database ---
-    conn = None
+    # Get user info from Mastodon
     try:
-        mastodon_id = str(user["id"])
+        mastodon_client = Mastodon(access_token=access_token, api_base_url=config.MASTODON_BASE_URL)
+        user = mastodon_client.me()
+        mastodon_id = str(user["id"])  # Unique user ID from Mastodon
         username = user.get("username", "")
-        # Use acct (like username@instance) as fallback display name if actual display name is empty
-        display_name = user.get("display_name", user.get("acct", ""))
+        display_name = user.get("display_name", "")
         profile_url = user.get("url", "")
+    except Exception as e:
+        logger.error(f"Error fetching user data: {e}")
+        return "Error: Could not fetch user data.", 500
 
-        conn = get_connection() # Use imported function
-        with conn.cursor() as cur:
-            # PostgreSQL UPSERT: INSERT...ON CONFLICT...DO UPDATE
-            # Assumes mastodon_id is the PRIMARY KEY in your users table
-            # Note: created_at is handled by DEFAULT NOW() in the table definition
-            # We update username, display_name, profile_url, and crucially access_token
-            cur.execute("""
-                INSERT INTO users (mastodon_id, access_token, username, display_name, profile_url)
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (mastodon_id) DO UPDATE SET
-                    access_token = EXCLUDED.access_token,
-                    username = EXCLUDED.username,
-                    display_name = EXCLUDED.display_name,
-                    profile_url = EXCLUDED.profile_url;
+    # Store user in `users.db`
+    try:
+        with sqlite3.connect("users.db") as conn:
+            c = conn.cursor()
+            c.execute("""
+                INSERT OR REPLACE INTO users 
+                (mastodon_id, access_token, username, display_name, profile_url) 
+                VALUES (?, ?, ?, ?, ?)
             """, (mastodon_id, access_token, username, display_name, profile_url))
-        conn.commit() # Commit the transaction for INSERT/UPDATE
-        logger.info(f"User {mastodon_id} ({username}) data stored/updated in database.")
+            conn.commit()
+    except Exception as e:
+        logger.error(f"Database Error: {e}")
+        return "Error: Could not store user.", 500
 
-        session["user_id"] = mastodon_id
-        return redirect(url_for("index"))
-
-    except (Exception, psycopg2.Error) as e:
-        logger.error(f"Database error storing user {user.get('id') if user else 'unknown'}: {e}")
-        if conn:
-            conn.rollback() # Rollback transaction on database error
-        return "Error: Could not save user information after login.", 500
-    finally:
-        if conn:
-            conn.close()
-
+    session["user_id"] = mastodon_id
+    return redirect(url_for("index"))
 
 @app.route("/add_tweet", methods=["POST"])
 def add_tweet():
-    user_id = get_user()
-    if not user_id:
+    if not get_user():
         return redirect(url_for("login"))
 
-    # Use .get() for safer access to form data
-    message = request.form.get("message")
-    schedule_time_str = request.form.get("schedule_time")
-    visibility = request.form.get("visibility", "public")
-    print(message, schedule_time_str, visibility)
-
-    if not message or not schedule_time_str:
-        # Consider flashing an error message
-        logger.warning(f"Add tweet attempt failed for user {user_id}: Missing message or schedule time.")
+    message = request.form["message"]
+    schedule_time = request.form["schedule_time"]
+    visibility = request.form.get("visibility", "public")  # Default to public if not specified
+    
+    # Validate inputs
+    if not message or not schedule_time:
         return "Error: Message and schedule time are required.", 400
-
-    # Basic validation/parsing could happen here if needed
-    # e.g., try: datetime.datetime.fromisoformat(schedule_time_str) except ValueError: ...
-
-    conn = None
+        
     try:
-        conn = get_connection()
-        with conn.cursor() as cur:
-            # Removed complex column checking - assume schema from database.py
-            # Use NOW() for created_at. status defaults to 'pending' in schema.
-            cur.execute("""
-                INSERT INTO tweets
-                (user_id, message, schedule_time, visibility)
-                VALUES (%s, %s, %s, %s)
-            """, (user_id, message, schedule_time_str, visibility))
-            # Note: Assuming 'status', 'created_at', 'retry_count' have defaults in DB schema
-        conn.commit() # Commit the INSERT
-        logger.info(f"Tweet scheduled for user {user_id} at {schedule_time_str}")
-        # flash("Post scheduled successfully!", "success") # Optional feedback
-    except (Exception, psycopg2.Error) as e:
-        logger.error(f"Database error scheduling tweet for user {user_id}: {e}")
-        if conn:
-            conn.rollback() # Rollback on error
-        # flash("Error scheduling post.", "error") # Optional feedback
-        return "Error: Could not schedule tweet due to a database issue.", 500
-    finally:
-        if conn:
-            conn.close()
+        # Format current time
+        created_at = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        with sqlite3.connect("tweets.db") as conn:
+            c = conn.cursor()
+            
+            # Check if status column exists
+            c.execute("PRAGMA table_info(tweets)")
+            columns = [column[1] for column in c.fetchall()]
+            
+            if all(col in columns for col in ["status", "created_at"]):
+                c.execute("""
+                    INSERT INTO tweets 
+                    (user_id, message, schedule_time, visibility, status, created_at) 
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (get_user(), message, schedule_time, visibility, "pending", created_at))
+            elif "visibility" in columns:
+                c.execute("""
+                    INSERT INTO tweets 
+                    (user_id, message, schedule_time, visibility) 
+                    VALUES (?, ?, ?, ?)
+                """, (get_user(), message, schedule_time, visibility))
+            else:
+                # Fallback for very old schema
+                c.execute("""
+                    INSERT INTO tweets 
+                    (user_id, message, schedule_time) 
+                    VALUES (?, ?, ?)
+                """, (get_user(), message, schedule_time))
+                
+            conn.commit()
+            
+        logger.info(f"Tweet scheduled for user {get_user()} at {schedule_time}")
+    except Exception as e:
+        logger.error(f"Database Error: {e}")
+        return "Error: Could not schedule tweet.", 500
 
     return redirect(url_for("index"))
 
 @app.route("/delete_tweet/<int:tweet_id>", methods=["POST"])
 def delete_tweet(tweet_id):
-    user_id = get_user()
-    if not user_id:
-        return jsonify({"success": False, "message": "Not authenticated"}), 401
-
-    conn = None
-    deleted_count = 0
+    if not get_user():
+        return redirect(url_for("login"))
+    
     try:
-        conn = get_connection()
-        with conn.cursor() as cur:
-            # Ensure the tweet belongs to the current user before deleting
-            cur.execute("DELETE FROM tweets WHERE id = %s AND user_id = %s", (tweet_id, user_id))
-            # Check how many rows were affected
-            deleted_count = cur.rowcount
-        conn.commit() # Commit the DELETE
-
-        if deleted_count == 0:
-            logger.warning(f"Attempted delete tweet {tweet_id} by user {user_id}, but not found or not authorized.")
-            return jsonify({"success": False, "message": "Tweet not found or not authorized"}), 404
-        else:
-            logger.info(f"Tweet {tweet_id} deleted by user {user_id}")
-            return jsonify({"success": True})
-
-    except (Exception, psycopg2.Error) as e:
-        logger.error(f"Database error deleting tweet {tweet_id} for user {user_id}: {e}")
-        if conn:
-            conn.rollback() # Rollback on error
-        return jsonify({"success": False, "message": "Database error during deletion"}), 500
-    finally:
-        if conn:
-            conn.close()
-
+        with sqlite3.connect("tweets.db") as conn:
+            c = conn.cursor()
+            # Verify the tweet belongs to the current user before deleting
+            c.execute("DELETE FROM tweets WHERE id = ? AND user_id = ?", (tweet_id, get_user()))
+            conn.commit()
+            if c.rowcount == 0:
+                logger.warning(f"Attempted to delete tweet {tweet_id} but not found or not authorized")
+                return jsonify({"success": False, "message": "Tweet not found or not authorized"}), 404
+                
+        logger.info(f"Tweet {tweet_id} deleted by user {get_user()}")
+    except Exception as e:
+        logger.error(f"Database Error: {e}")
+        return jsonify({"success": False, "message": str(e)}), 500
+    
+    return jsonify({"success": True})
 
 @app.route("/get_tweets", methods=["GET"])
 def get_tweets():
-    """API endpoint to get pending tweets for the logged-in user."""
-    user_id = get_user()
-    if not user_id:
+    if not get_user():
         return jsonify({"error": "Not authenticated"}), 401
-
-    conn = None
+    
     try:
-        conn = get_connection()
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            # Fetch tweets with pending status
-            cur.execute("""
+        with sqlite3.connect("tweets.db") as conn:
+            conn.row_factory = sqlite3.Row  # This enables column access by name
+            c = conn.cursor()
+            c.execute("""
                 SELECT id, message, schedule_time, visibility, status, created_at
-                FROM tweets
-                WHERE user_id = %s AND status = 'pending'
+                FROM tweets 
+                WHERE user_id = ? AND status = 'pending'
                 ORDER BY schedule_time
-            """, (user_id,))
-            tweets = [dict(row) for row in cur.fetchall()]
-        return jsonify({"tweets": tweets})
-    except (Exception, psycopg2.Error) as e:
-        logger.error(f"Database Error in get_tweets for user {user_id}: {e}")
-        return jsonify({"error": "Could not retrieve tweets"}), 500
-    finally:
-        if conn:
-            conn.close()
+            """, (get_user(),))
+            tweets = [dict(row) for row in c.fetchall()]
+    except Exception as e:
+        logger.error(f"Database Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    
+    return jsonify({"tweets": tweets})
 
 @app.route("/get_history", methods=["GET"])
 def get_history():
-    """API endpoint to get history of posted/failed tweets."""
-    user_id = get_user()
-    if not user_id:
+    """Get history of posted tweets."""
+    if not get_user():
         return jsonify({"error": "Not authenticated"}), 401
-
-    conn = None
+    
     try:
-        conn = get_connection()
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
-            # Fetch tweets that are NOT pending, limit results
-            # Assumes your schema has 'posted_at' column, uses COALESCE for ordering
-            cur.execute("""
+        with sqlite3.connect("tweets.db") as conn:
+            conn.row_factory = sqlite3.Row
+            c = conn.cursor()
+            c.execute("""
                 SELECT id, message, schedule_time, visibility, status, posted_at
-                FROM tweets
-                WHERE user_id = %s AND status != 'pending'
-                ORDER BY COALESCE(posted_at, created_at) DESC
-                LIMIT 50 -- Limit history size
-            """, (user_id,))
-            history = [dict(row) for row in cur.fetchall()]
-        return jsonify({"history": history})
-    except (Exception, psycopg2.Error) as e:
-        logger.error(f"Database Error in get_history for user {user_id}: {e}")
-        # Add specific check if 'posted_at' is missing
-        if "column tweets.posted_at does not exist" in str(e).lower():
-             logger.error("History query failed: 'posted_at' column might be missing in the tweets table.")
-             return jsonify({"error": "History feature unavailable (schema mismatch)"}), 500
-        return jsonify({"error": "Could not retrieve history"}), 500
-    finally:
-        if conn:
-            conn.close()
-
+                FROM tweets 
+                WHERE user_id = ? AND status = 'posted'
+                ORDER BY posted_at DESC
+                LIMIT 20
+            """, (get_user(),))
+            history = [dict(row) for row in c.fetchall()]
+    except Exception as e:
+        logger.error(f"Database Error: {e}")
+        return jsonify({"error": str(e)}), 500
+    
+    return jsonify({"history": history})
 
 @app.route("/logout")
 def logout():
-    user_id = session.pop("user_id", None)
-    if user_id:
-        logger.info(f"User {user_id} logged out.")
-    # flash("You have been logged out.", "info") # Optional feedback
+    session.pop("user_id", None)
     return redirect(url_for("index"))
 
-
-# --- Application Entry Point ---
 if __name__ == "__main__":
-    logger.info("Starting Mastodon Scheduler Application...")
-    # Initialize database using the wrapper function which calls
-    # functions from the imported database.py
-    
-
-    # Run the Flask development server
-    # Set debug=False for production
+    init_databases()  # Ensure tables exist before running
     app.run(debug=False)
