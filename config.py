@@ -44,7 +44,7 @@ REDIRECT_URI = os.getenv("REDIRECT_URI")
 if not REDIRECT_URI:
     # Default usually points to the callback route in your Flask app
     # MAKE SURE THIS MATCHES YOUR DEPLOYED URL on Render/Railway
-    REDIRECT_URI = "https://your-app-name.onrender.com/callback" # Example - update needed!
+    REDIRECT_URI = "https://dvppostio-production.up.railway.app/callback" # Example - update needed!
     logger.warning(f"REDIRECT_URI not found. Using default: {REDIRECT_URI}")
 
 # --- Database Configuration (Using Single URL) ---
@@ -80,12 +80,12 @@ if not SECRET_KEY:
 # --- Application Configuration ---
 logger.info("Loading General Application Configuration...")
 APP_NAME = "DVP POST IO"
-DEBUG = os.getenv("FLASK_DEBUG", "False").lower() in ("true", "1", "t")
+
 
 # --- Configuration Summary Logging ---
 logger.info("--- Configuration Summary ---")
 logger.info(f"APP_NAME:         {APP_NAME}")
-logger.info(f"DEBUG:            {DEBUG}")
+
 logger.info(f"SECRET_KEY:       {'Set (from env)' if os.getenv('SECRET_KEY') else 'Generated (temporary!)'}")
 logger.info(f"MASTODON_BASE_URL:{MASTODON_BASE_URL}")
 logger.info(f"REDIRECT_URI:     {REDIRECT_URI}")
