@@ -4,7 +4,7 @@ from mastodon import Mastodon
 import config
 import logging
 import datetime
-from database import create_databases, migrate_data, check_database_integrity, repair_database
+
 
 # Configure logging
 logging.basicConfig(
@@ -51,21 +51,7 @@ def get_user_info():
         logger.error(f"Error fetching user info: {e}")
         return None
 
-def init_databases():
-    """Create tables if they don't exist."""
-    # Check database integrity first
-    if not check_database_integrity():
-        logger.warning("Database integrity check failed, attempting repair")
-        repair_database()
-    
-    # Create or update databases
-    result = create_databases()
-    
-    # Migrate existing data
-    if result:
-        migrate_data()
-        
-    return result
+
 
 @app.route("/")
 def index():
@@ -301,5 +287,5 @@ def logout():
     return redirect(url_for("index"))
 
 if __name__ == "__main__":
-    init_databases()  # Ensure tables exist before running
+    
     app.run(debug=False)
