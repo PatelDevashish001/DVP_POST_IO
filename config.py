@@ -32,46 +32,40 @@ if not MASTODON_BASE_URL:
     MASTODON_BASE_URL = "https://mastodon.social" # Or your preferred default instance
     logger.warning(f"MASTODON_BASE_URL not found. Using default: {MASTODON_BASE_URL}")
 
-CLIENT_ID = os.getenv("MASTODON_CLIENT_ID")
+CLIENT_ID = os.getenv("MASTODON_CLIENT_ID") # Changed from MASTODON_CLIENT_ID for consistency if needed
 if not CLIENT_ID:
-    logger.error("MASTODON_CLIENT_ID not found in environment variables. Authentication will fail.")
+    logger.error("CLIENT_ID not found in environment variables. Authentication will fail.")
 
-CLIENT_SECRET = os.getenv("MASTODON_CLIENT_SECRET")
+CLIENT_SECRET = os.getenv("MASTODON_CLIENT_SECRET") # Changed from MASTODON_CLIENT_SECRET
 if not CLIENT_SECRET:
-    logger.error("MASTODON_CLIENT_SECRET not found in environment variables. Authentication will fail.")
+    logger.error("CLIENT_SECRET not found in environment variables. Authentication will fail.")
 
 REDIRECT_URI = os.getenv("REDIRECT_URI")
 if not REDIRECT_URI:
     # Default usually points to the callback route in your Flask app
-    REDIRECT_URI = "https://dvppostio-production.up.railway.app/callback" # Match your Flask app's port
+    # MAKE SURE THIS MATCHES YOUR DEPLOYED URL on Render/Railway
+    REDIRECT_URI = "https://your-app-name.onrender.com/callback" # Example - update needed!
     logger.warning(f"REDIRECT_URI not found. Using default: {REDIRECT_URI}")
 
-# --- Database Configuration (PostgreSQL) ---
+# --- Database Configuration (Using Single URL) ---
 logger.info("Loading Database Configuration...")
-POSTGRES_DB = os.getenv("POSTGRES_DB")
-if not POSTGRES_DB:
-    logger.error("POSTGRES_DB not found in environment variables. Database connection will fail.")
+# Load the single RENDER_DATABASE_URL variable
+RENDER_DATABASE_URL = os.getenv("RENDER_DATABASE_URL")
+if not RENDER_DATABASE_URL:
+    # This is critical, make it an error or critical log
+    logger.critical("CRITICAL: RENDER_DATABASE_URL not found in environment variables! Database connection will fail.")
+    # Set to None or raise error if needed elsewhere in the code
+    # RENDER_DATABASE_URL = None
+else:
+    # Log that it's set, but avoid logging the full URL which contains credentials
+    logger.info("RENDER_DATABASE_URL: Set (using provided connection string)")
 
-POSTGRES_USER = os.getenv("POSTGRES_USER")
-if not POSTGRES_USER:
-    logger.error("POSTGRES_USER not found in environment variables. Database connection will fail.")
-
-POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-# ***************************************************************
-# CHANGE: Log an ERROR instead of WARNING if password is missing
-# ***************************************************************
-if not POSTGRES_PASSWORD:
-    logger.error("POSTGRES_PASSWORD not found in environment variables. Connection will likely fail if password is required.")
-
-POSTGRES_HOST = os.getenv("POSTGRES_HOST")
-if not POSTGRES_HOST:
-    POSTGRES_HOST = "localhost"
-    logger.warning(f"POSTGRES_HOST not found. Using default: {POSTGRES_HOST}")
-
-POSTGRES_PORT = os.getenv("POSTGRES_PORT")
-if not POSTGRES_PORT:
-    POSTGRES_PORT = "5432" # Default PostgreSQL port
-    logger.warning(f"POSTGRES_PORT not found. Using default: {POSTGRES_PORT}")
+# --- Remove loading of individual POSTGRES_* variables ---
+# POSTGRES_DB = os.getenv("POSTGRES_DB")
+# POSTGRES_USER = os.getenv("POSTGRES_USER")
+# POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
+# POSTGRES_HOST = os.getenv("POSTGRES_HOST")
+# POSTGRES_PORT = os.getenv("POSTGRES_PORT")
 
 
 # --- Application Security ---
@@ -97,28 +91,20 @@ logger.info(f"MASTODON_BASE_URL:{MASTODON_BASE_URL}")
 logger.info(f"REDIRECT_URI:     {REDIRECT_URI}")
 logger.info(f"CLIENT_ID:        {'Set' if CLIENT_ID else '!!! NOT SET !!!'}")
 logger.info(f"CLIENT_SECRET:    {'Set' if CLIENT_SECRET else '!!! NOT SET !!!'}")
-logger.info(f"POSTGRES_HOST:    {POSTGRES_HOST}")
-logger.info(f"POSTGRES_PORT:    {POSTGRES_PORT}")
-logger.info(f"POSTGRES_DB:      {POSTGRES_DB if POSTGRES_DB else '!!! NOT SET !!!'}")
-logger.info(f"POSTGRES_USER:    {POSTGRES_USER if POSTGRES_USER else '!!! NOT SET !!!'}")
-# ***************************************************************
-# CHANGE: Update summary logging for password
-# ***************************************************************
-logger.info(f"POSTGRES_PASSWORD:{'Set' if POSTGRES_PASSWORD else '!!! NOT SET (Likely Required) !!!'}")
+# Log status of the single DB URL
+logger.info(f"RENDER_DATABASE_URL:{'Set' if RENDER_DATABASE_URL else '!!! NOT SET !!!'}")
+# Remove logging for individual POSTGRES_* vars
+# logger.info(f"POSTGRES_HOST:    {POSTGRES_HOST}")
+# ... etc ...
 logger.info("--- End Configuration Summary ---")
 
 
 # --- Final Validation ---
-# List variables absolutely required for the app/scheduler to function
-# ***************************************************************
-# CHANGE: Add PostgreSQL Password to the required variables list
-# ***************************************************************
+# Update validation to check RENDER_DATABASE_URL
 required_env_vars = {
     "Mastodon Client ID": CLIENT_ID,
     "Mastodon Client Secret": CLIENT_SECRET,
-    "PostgreSQL DB Name": POSTGRES_DB,
-    "PostgreSQL User": POSTGRES_USER,
-    "PostgreSQL Password": POSTGRES_PASSWORD, # Added password here
+    "Render Database URL": RENDER_DATABASE_URL, # Check the single URL
 }
 
 missing_vars_details = [name for name, value in required_env_vars.items() if not value]
@@ -129,5 +115,5 @@ if missing_vars_details:
     logger.critical("Please check your .env file or environment variables.")
     print(f"\nCRITICAL ERROR: {error_msg}")
     print("The application cannot start without these settings.")
-    print("Ensure your .env file is correctly set up.")
+    print("Ensure your .env file or environment variables are correctly set up.")
     # sys.exit(1) # Uncomment to force exit if critical config is missing
