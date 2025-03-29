@@ -60,12 +60,7 @@ else:
     # Log that it's set, but avoid logging the full URL which contains credentials
     logger.info("RENDER_DATABASE_URL: Set (using provided connection string)")
 
-# --- Remove loading of individual POSTGRES_* variables ---
-# POSTGRES_DB = os.getenv("POSTGRES_DB")
-# POSTGRES_USER = os.getenv("POSTGRES_USER")
-# POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD")
-# POSTGRES_HOST = os.getenv("POSTGRES_HOST")
-# POSTGRES_PORT = os.getenv("POSTGRES_PORT")
+
 
 
 # --- Application Security ---
@@ -82,21 +77,7 @@ logger.info("Loading General Application Configuration...")
 APP_NAME = "DVP POST IO"
 
 
-# --- Configuration Summary Logging ---
-logger.info("--- Configuration Summary ---")
-logger.info(f"APP_NAME:         {APP_NAME}")
 
-logger.info(f"SECRET_KEY:       {'Set (from env)' if os.getenv('SECRET_KEY') else 'Generated (temporary!)'}")
-logger.info(f"MASTODON_BASE_URL:{MASTODON_BASE_URL}")
-logger.info(f"REDIRECT_URI:     {REDIRECT_URI}")
-logger.info(f"CLIENT_ID:        {'Set' if CLIENT_ID else '!!! NOT SET !!!'}")
-logger.info(f"CLIENT_SECRET:    {'Set' if CLIENT_SECRET else '!!! NOT SET !!!'}")
-# Log status of the single DB URL
-logger.info(f"RENDER_DATABASE_URL:{'Set' if RENDER_DATABASE_URL else '!!! NOT SET !!!'}")
-# Remove logging for individual POSTGRES_* vars
-# logger.info(f"POSTGRES_HOST:    {POSTGRES_HOST}")
-# ... etc ...
-logger.info("--- End Configuration Summary ---")
 
 
 # --- Final Validation ---
@@ -107,13 +88,3 @@ required_env_vars = {
     "Render Database URL": RENDER_DATABASE_URL, # Check the single URL
 }
 
-missing_vars_details = [name for name, value in required_env_vars.items() if not value]
-
-if missing_vars_details:
-    error_msg = f"Missing critical configuration variables: {', '.join(missing_vars_details)}"
-    logger.critical(error_msg)
-    logger.critical("Please check your .env file or environment variables.")
-    print(f"\nCRITICAL ERROR: {error_msg}")
-    print("The application cannot start without these settings.")
-    print("Ensure your .env file or environment variables are correctly set up.")
-    # sys.exit(1) # Uncomment to force exit if critical config is missing
