@@ -32,15 +32,8 @@ def log(message, level="INFO"):
 
 # --- Database Connection Function ---
 def get_connection():
-    """Establish connection to PostgreSQL database."""
-    return psycopg2.connect(
-        dbname=config.POSTGRES_DB,  # Change this to your actual DB name
-        user=config.POSTGRES_USER,  # Default PostgreSQL user
-        password=config.POSTGRES_PASSWORD,  # Your actual password
-        host="localhost",  # Default host
-        port="5432"
-    )
-
+    """Establish connection to Render PostgreSQL database."""
+    return psycopg2.connect(config.RENDER_DATABASE_URL)
 # Removed check_databases (file check) - Replaced by connection check in check_config
 
 def check_config():
