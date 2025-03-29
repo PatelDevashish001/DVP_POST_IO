@@ -383,4 +383,4 @@ if __name__ == "__main__":
 
     # Run the Flask development server
     # Set debug=False for production
-    app.run(host='127.0.0.1', port=5001, debug=True)
+    app.run(debug=False)
