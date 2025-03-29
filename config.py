@@ -43,7 +43,7 @@ if not CLIENT_SECRET:
 REDIRECT_URI = os.getenv("REDIRECT_URI")
 if not REDIRECT_URI:
     # Default usually points to the callback route in your Flask app
-    REDIRECT_URI = "http://127.0.0.1:5001/callback" # Match your Flask app's port
+    REDIRECT_URI = "https://dvppostio-production.up.railway.app/callback" # Match your Flask app's port
     logger.warning(f"REDIRECT_URI not found. Using default: {REDIRECT_URI}")
 
 # --- Database Configuration (PostgreSQL) ---
