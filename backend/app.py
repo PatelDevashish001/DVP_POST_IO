@@ -6,8 +6,10 @@ from mastodon import Mastodon
 import config
 import logging
 import datetime
-# --- Import functions EXACTLY as named in your database.py ---
-from database import get_connection, create_databases, migrate_data, check_database_integrity, repair_database
+def get_connection():
+    """Establish connection to Render PostgreSQL database."""
+    return psycopg2.connect(config.RENDER_DATABASE_URL)
+
 
 # Configure logging (remains the same)
 logging.basicConfig(
@@ -64,44 +66,6 @@ def get_user_info():
         if conn:
             conn.close() # Ensure connection is always closed
 
-# --- Database Initialization Wrapper (Uses imported functions) ---
-def init_databases():
-    """Check integrity, repair if needed, create/update tables, migrate data."""
-    # This function now orchestrates the calls to the functions imported from database.py
-    try:
-        logger.info("Checking database integrity...")
-        if not check_database_integrity():
-            logger.warning("Database integrity check failed, attempting repair...")
-            # repair_database() calls create_databases internally if check fails
-            if not repair_database():
-                 logger.error("Database repair attempt failed.")
-                 return False # Indicate failure
-            else:
-                logger.info("Database repair attempt completed (tables possibly created).")
-        else:
-            logger.info("Database integrity check passed. Ensuring schema is up-to-date...")
-            # Still call create_databases to handle potential schema updates (IF NOT EXISTS)
-            if not create_databases():
-                logger.error("Failed to verify/update database schema.")
-                return False # Indicate failure
-            else:
-                 logger.info("Schema verified/updated.")
-
-        logger.info("Applying data migrations...")
-        if not migrate_data():
-            logger.warning("Data migration step failed or encountered an issue.")
-            # Decide if this is critical - for now, we continue
-        else:
-            logger.info("Data migration step completed.")
-
-        logger.info("Database initialization sequence complete.")
-        return True
-    except Exception as e:
-        logger.error(f"Error during database initialization sequence: {e}")
-        return False
-
-
-# --- Routes (Converted to PostgreSQL) ---
 
 @app.route("/")
 def index():
@@ -228,6 +192,7 @@ def add_tweet():
     message = request.form.get("message")
     schedule_time_str = request.form.get("schedule_time")
     visibility = request.form.get("visibility", "public")
+    print(message, schedule_time_str, visibility)
 
     if not message or not schedule_time_str:
         # Consider flashing an error message
@@ -373,14 +338,8 @@ if __name__ == "__main__":
     logger.info("Starting Mastodon Scheduler Application...")
     # Initialize database using the wrapper function which calls
     # functions from the imported database.py
-    if not init_databases():
-         logger.critical("DATABASE INITIALIZATION FAILED. Check logs. Application might not function correctly.")
-         # Consider exiting if DB init is critical
-         # import sys
-         # sys.exit("Exiting due to database initialization failure.")
-    else:
-        logger.info("Database initialization checks passed.")
+    
 
     # Run the Flask development server
     # Set debug=False for production
-    app.run(debug=False)
+    app.run(host='127.0.0.1', port=5001, debug=True)
