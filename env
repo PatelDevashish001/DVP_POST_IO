@@ -1,0 +1,7 @@
+MASTODON_BASE_URL="https://mastodon.social"
+REDIRECT_URI="https://dvppostio-production.up.railway.app/callback"
+SECRET_KEY="dvp_post_io_secret_key_change_in_production"
+MASTODON_ACCESS_TOKEN="Ftte6SH71RSxw75acuUlfCTBQarC3voiQCAgsgoduWA"
+MASTODON_CLIENT_ID="hQ-WSccWVVSpBbGC-M4h_aMpLlQJ26i9-mbjD1enDDE"
+MASTODON_CLIENT_SECRET="_jxGMILr92eIKEBXEhrMDFUQY5BjZ3Qnf19Eq-1QNyA"
+RENDER_DATABASE_URL="postgresql://postgres:lKLRYYvIebhURmQUjoUayXfLrugshYzV@shuttle.proxy.rlwy.net:30833/railway"
