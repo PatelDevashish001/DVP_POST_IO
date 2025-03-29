@@ -3,15 +3,9 @@ from flask import Flask, render_template, request, redirect, session, url_for, j
 import psycopg2 # Import PostgreSQL driver
 import psycopg2.extras # Import DictCursor
 from mastodon import Mastodon
-import config
 import logging
 import datetime
-def get_connection():
-    """Establish connection to Render PostgreSQL database."""
-    return psycopg2.connect(config.RENDER_DATABASE_URL)
-
-
-# Configure logging (remains the same)
+import os
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -21,16 +15,21 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger("mastodon_scheduler")
+def get_connection():
+    """Establish connection to Render PostgreSQL database."""
+    return psycopg2.connect(os.getenv("RENDER_DATABASE_URL"))
+
+
 
 app = Flask(__name__)
-app.secret_key = config.SECRET_KEY
+app.secret_key = os.getenv("SECRET_KEY")
 app.config['APP_NAME'] = "DVP POST IO"
 
 # Mastodon client setup (remains the same)
 mastodon = Mastodon(
-    client_id=config.CLIENT_ID,
-    client_secret=config.CLIENT_SECRET,
-    api_base_url=config.MASTODON_BASE_URL
+    client_id=os.getenv("CLIENT_ID"),
+    client_secret=os.getenv("CLIENT_SECRET"),
+    api_base_url=os.getenv("MASTODON_BASE_URL")
 )
 
 # --- User Session Helper ---
@@ -115,7 +114,7 @@ def login():
         return redirect(url_for("index"))
     auth_url = mastodon.auth_request_url(
         scopes=["read", "write"],
-        redirect_uris=config.REDIRECT_URI
+        redirect_uris=os.getenv("REDIRECT_URI")
     )
     return redirect(auth_url)
 
@@ -131,10 +130,10 @@ def callback():
     try:
         access_token = mastodon.log_in(
             code=code,
-            redirect_uri=config.REDIRECT_URI,
+            redirect_uri=os.getenv("REDIRECT_URI"),
             scopes=["read", "write"]
         )
-        mastodon_client = Mastodon(access_token=access_token, api_base_url=config.MASTODON_BASE_URL)
+        mastodon_client = Mastodon(access_token=access_token, api_base_url=os.getenv("MASTODON_BASE_URL"))
         user = mastodon_client.me()
         logger.info(f"Successfully authenticated Mastodon user: {user.get('username')}")
 
