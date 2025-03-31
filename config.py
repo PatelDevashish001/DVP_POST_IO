@@ -41,11 +41,6 @@ if not CLIENT_SECRET:
     logger.error("CLIENT_SECRET not found in environment variables. Authentication will fail.")
 
 REDIRECT_URI = os.getenv("REDIRECT_URI")
-if not REDIRECT_URI:
-    # Default usually points to the callback route in your Flask app
-    # MAKE SURE THIS MATCHES YOUR DEPLOYED URL on Render/Railway
-    REDIRECT_URI = "https://dvppostio-production.up.railway.app/callback" # Example - update needed!
-    logger.warning(f"REDIRECT_URI not found. Using default: {REDIRECT_URI}")
 
 # --- Database Configuration (Using Single URL) ---
 logger.info("Loading Database Configuration...")
@@ -80,8 +75,7 @@ APP_NAME = "DVP POST IO"
 
 
 
-# --- Final Validation ---
-# Update validation to check RENDER_DATABASE_URL
+
 required_env_vars = {
     "Mastodon Client ID": CLIENT_ID,
     "Mastodon Client Secret": CLIENT_SECRET,
