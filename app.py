@@ -138,7 +138,7 @@ def callback():
         )
         mastodon_client = Mastodon(access_token=access_token, api_base_url=config.MASTODON_BASE_URL)
         user = mastodon_client.me()
-        logger.info(f"Successfully authenticated Mastodon user: {user.get('username')}")
+        
 
     except Exception as e:
         logger.error(f"Mastodon authentication or API error during callback: {e}")
@@ -169,7 +169,7 @@ def callback():
                     profile_url = EXCLUDED.profile_url;
             """, (mastodon_id, access_token, username, display_name, profile_url))
         conn.commit() # Commit the transaction for INSERT/UPDATE
-        logger.info(f"User {mastodon_id} ({username}) data stored/updated in database.")
+        
 
         session["user_id"] = mastodon_id
         return redirect(url_for("index"))
@@ -216,8 +216,7 @@ def add_tweet():
             """, (user_id, message, schedule_time_str, visibility))
             # Note: Assuming 'status', 'created_at', 'retry_count' have defaults in DB schema
         conn.commit() # Commit the INSERT
-        logger.info(f"Tweet scheduled for user {user_id} at {schedule_time_str}")
-        # flash("Post scheduled successfully!", "success") # Optional feedback
+        
     except (Exception, psycopg2.Error) as e:
         logger.error(f"Database error scheduling tweet for user {user_id}: {e}")
         if conn:
@@ -336,10 +335,4 @@ def logout():
 
 # --- Application Entry Point ---
 if __name__ == "__main__":
-    logger.info("Starting Mastodon Scheduler Application...")
-    # Initialize database using the wrapper function which calls
-    # functions from the imported database.py
-   
-    # Run the Flask development server
-    # Set debug=False for production
     app.run(debug=False)
