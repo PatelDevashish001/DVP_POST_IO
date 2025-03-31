@@ -1,2 +1,2 @@
-web: gunicorn backend.app:app
-worker: python backend/post.py
+web: gunicorn app:app
+worker: python post.py
